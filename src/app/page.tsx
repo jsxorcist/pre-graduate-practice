@@ -13,7 +13,8 @@ export default function Home() {
               Ценности команды: игра-приключение
             </h1>
             <p className="mx-auto max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-              Познакомьтесь с ценностями компании через игровой стартовый экран и 3D-навигацию.
+              Познакомьтесь с ценностями компании через игровой стартовый экран
+              и 3D-навигацию.
             </p>
             <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link
@@ -30,20 +31,27 @@ export default function Home() {
               </Link>
             </div>
           </div>
-          <section id="about" className="mt-14 rounded-[28px] border border-white/5 bg-slate-950/80 p-8">
+          <section
+            id="about"
+            className="mt-14 rounded-[28px] border border-white/5 bg-slate-950/80 p-8"
+          >
             <h2 className="text-2xl font-semibold text-white">Структура MVP</h2>
             <p className="mt-4 max-w-3xl text-slate-400">
-              Здесь начальный экран проекта. Дальше будет игра с трехмерной сценой, миссиями и прогрессом.
+              Здесь начальный экран проекта. Дальше будет игра с трехмерной
+              сценой, миссиями и прогрессом.
             </p>
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              {[
-                "Ответственность",
-                "Прозрачность",
-                "Скорость",
-              ].map((value) => (
-                <div key={value} className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 text-left">
-                  <p className="text-sm uppercase tracking-[0.25em] text-slate-500">Ценность</p>
-                  <p className="mt-2 text-base font-medium text-white">{value}</p>
+              {["Ответственность", "Прозрачность", "Скорость"].map((value) => (
+                <div
+                  key={value}
+                  className="rounded-3xl border border-white/10 bg-slate-900/80 p-4 text-left"
+                >
+                  <p className="text-sm uppercase tracking-[0.25em] text-slate-500">
+                    Ценность
+                  </p>
+                  <p className="mt-2 text-base font-medium text-white">
+                    {value}
+                  </p>
                 </div>
               ))}
             </div>

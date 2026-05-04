@@ -7,10 +7,10 @@ export default function GamePage() {
         <div className="flex flex-col gap-4 rounded-4xl border border-white/10 bg-slate-900/80 p-8 shadow-2xl shadow-slate-950/20">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm uppercase tracking-[0.35em] text-slate-400">Игровой режим</p>
-              <h1 className="text-4xl font-semibold text-white">
-                Игра
-              </h1>
+              <p className="text-sm uppercase tracking-[0.35em] text-slate-400">
+                Игровой режим
+              </p>
+              <h1 className="text-4xl font-semibold text-white">Игра</h1>
             </div>
             <Link
               href="/"
@@ -20,7 +20,8 @@ export default function GamePage() {
             </Link>
           </div>
           <p className="max-w-3xl text-slate-400">
-            Здесь будет сцена Three.js и основная игровая механика. Пока виден пустой контейнер для 3D-сцены.
+            Здесь будет сцена Three.js и основная игровая механика. Пока виден
+            пустой контейнер для 3D-сцены.
           </p>
           <div className="rounded-4xl border border-dashed border-white/15 bg-slate-950/70 p-8">
             <div className="flex h-96 items-center justify-center rounded-3xl border border-white/10 bg-black/70 text-center text-slate-400">
