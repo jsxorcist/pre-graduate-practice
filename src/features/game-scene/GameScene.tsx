@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { GameProvider, useGame } from "./GameContext";
 import EpicOverlay from "../ui-epic-overlay/EpicOverlay";
@@ -15,6 +15,9 @@ import QuestGiverNpc from "./QuestGiverNpc";
 import DeskWorkerNpc from "./DeskWorkerNpc";
 import SpeedCoachNpc from "./SpeedCoachNpc";
 import GameCameraRig from "./GameCameraRig";
+import CampaignVictoryOverlay from "./CampaignVictoryOverlay";
+import MobileTouchControls from "./MobileTouchControls";
+import CheerfulBgm from "./CheerfulBgm";
 
 export default function GameScene() {
   return (
@@ -25,13 +28,20 @@ export default function GameScene() {
 }
 
 function GameSceneInner() {
-  const { completeMission, unlockAchievement, flushDeferredAchievementToasts } =
-    useGame();
+  const {
+    completeMission,
+    unlockAchievement,
+    flushDeferredAchievementToasts,
+    resetCampaign,
+    completedMissions,
+  } = useGame();
   const [overlayActive, setOverlayActive] = useState(false);
   const [missionActive, setMissionActive] = useState(false);
   const [transparencyMissionActive, setTransparencyMissionActive] = useState(false);
   const [speedMissionActive, setSpeedMissionActive] = useState(false);
+  const [campaignVictoryOpen, setCampaignVictoryOpen] = useState(false);
   const overlayTimer = useRef<number | null>(null);
+  const campaignVictoryShownRef = useRef(false);
 
   const handleEpicLaunch = useCallback(() => {
     unlockAchievement("epic-reactor");
@@ -66,10 +76,49 @@ function GameSceneInner() {
   }, [completeMission]);
 
   const hideNpcBubbles =
-    missionActive || transparencyMissionActive || speedMissionActive;
+    missionActive ||
+    transparencyMissionActive ||
+    speedMissionActive ||
+    campaignVictoryOpen;
+
+  const allMissionsDone =
+    completedMissions.length > 0 && completedMissions.every(Boolean);
+
+  useEffect(() => {
+    if (
+      !allMissionsDone ||
+      missionActive ||
+      transparencyMissionActive ||
+      speedMissionActive ||
+      campaignVictoryShownRef.current
+    ) {
+      return;
+    }
+    const id = window.setTimeout(() => {
+      setCampaignVictoryOpen(true);
+      campaignVictoryShownRef.current = true;
+    }, 420);
+    return () => window.clearTimeout(id);
+  }, [
+    allMissionsDone,
+    missionActive,
+    transparencyMissionActive,
+    speedMissionActive,
+  ]);
+
+  const handleCampaignVictoryClose = useCallback(() => {
+    setCampaignVictoryOpen(false);
+  }, []);
+
+  const handleCampaignRestart = useCallback(() => {
+    resetCampaign();
+    setCampaignVictoryOpen(false);
+    campaignVictoryShownRef.current = false;
+    flushDeferredAchievementToasts();
+  }, [resetCampaign, flushDeferredAchievementToasts]);
 
   return (
-    <div className="relative h-screen w-full bg-linear-to-b from-sky-200 to-yellow-200">
+    <div className="relative h-screen w-full touch-none overscroll-none bg-linear-to-b from-sky-200 to-yellow-200">
       <Canvas
         shadows
         camera={{ position: [0, 4, -6], fov: 60, near: 0.1, far: 100 }}
@@ -137,6 +186,16 @@ function GameSceneInner() {
       <MissionHud missionPanelOpen={hideNpcBubbles} />
       <AchievementToast />
 
+      <CampaignVictoryOverlay
+        active={campaignVictoryOpen}
+        onClose={handleCampaignVictoryClose}
+        onRestart={handleCampaignRestart}
+      />
+
+      <MobileTouchControls disabled={hideNpcBubbles} />
+
+      <CheerfulBgm />
+
       <div className="absolute top-3 left-3 z-40 max-w-[13rem] select-none rounded-lg border border-white/20 bg-black/45 px-3 py-2.5 text-sm text-white shadow-lg backdrop-blur-md">
         <h1 className="text-sm font-bold tracking-tight text-yellow-300 md:text-base">
           Ядро — комната
@@ -147,8 +206,10 @@ function GameSceneInner() {
         <p className="mt-2 text-[10px] leading-snug text-slate-200/95 md:text-xs">
           <span className="font-semibold text-cyan-200">WASD</span> — движение ·{" "}
           <span className="font-semibold text-cyan-200">Пробел</span> — прыжок ·{" "}
-          <span className="font-semibold text-cyan-200">R</span> — турбо (зажать ~3 с) ·{" "}
           <span className="font-semibold text-cyan-200">E</span> — взаимодействие
+        </p>
+        <p className="mt-2 border-t border-white/10 pt-2 text-[10px] leading-snug text-slate-300/90 lg:hidden">
+          На телефоне панель снизу: стрелки, прыжок и «Действие» вместо E.
         </p>
       </div>
 

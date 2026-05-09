@@ -11,8 +11,19 @@ import {
   type MutableRefObject,
 } from "react";
 import * as THREE from "three";
-import { MISSION_INDEX_TO_ACHIEVEMENT } from "./achievementMeta";
+import {
+  CAMPAIGN_RESET_ACHIEVEMENT_IDS,
+  MISSION_INDEX_TO_ACHIEVEMENT,
+} from "./achievementMeta";
 import { MISSION_TOTAL } from "./missionMeta";
+
+/** Сенсорный D-pad — читает Player и мержит с клавиатурой. */
+export type MobileDigitalPad = {
+  w: boolean;
+  a: boolean;
+  s: boolean;
+  d: boolean;
+};
 
 interface GameContextType {
   playerWorldPositionRef: MutableRefObject<THREE.Vector3>;
@@ -25,6 +36,15 @@ interface GameContextType {
   /** Вынести отложенные тосты в очередь (после «Назад в комнату»). */
   flushDeferredAchievementToasts: () => void;
   dismissAchievementToast: () => void;
+  /** Сбросить все миссии и связанные достижения (новая кампания). */
+  resetCampaign: () => void;
+  mobilePadRef: MutableRefObject<MobileDigitalPad>;
+  mobileJumpQueuedRef: MutableRefObject<boolean>;
+  queueMobileJump: () => void;
+  /** Имитация клавиши E для NPC (тап «действие» на телефоне). */
+  pulseInteractKeyE: () => void;
+  /** Удержание кнопки «Прыжок» на тач (для комбо с пробелом на клавиатуре). */
+  jumpButtonHeldRef: MutableRefObject<boolean>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -38,6 +58,30 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [achievementToastQueue, setAchievementToastQueue] = useState<string[]>([]);
   const unlockedIdsRef = useRef<Set<string>>(new Set());
   const deferredToastIdsRef = useRef<string[]>([]);
+  const mobilePadRef = useRef<MobileDigitalPad>({
+    w: false,
+    a: false,
+    s: false,
+    d: false,
+  });
+  const mobileJumpQueuedRef = useRef(false);
+  const jumpButtonHeldRef = useRef(false);
+
+  const queueMobileJump = useCallback(() => {
+    mobileJumpQueuedRef.current = true;
+  }, []);
+
+  const pulseInteractKeyE = useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        code: "KeyE",
+        key: "e",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  }, []);
 
   const completeMission = useCallback((index: number) => {
     setCompletedMissions((prev) => {
@@ -72,6 +116,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setAchievementToastQueue((q) => q.slice(1));
   }, []);
 
+  const resetCampaign = useCallback(() => {
+    setCompletedMissions(Array.from({ length: MISSION_TOTAL }, () => false));
+    CAMPAIGN_RESET_ACHIEVEMENT_IDS.forEach((id) =>
+      unlockedIdsRef.current.delete(id),
+    );
+    setUnlockedAchievementIds((prev) =>
+      prev.filter((id) => !CAMPAIGN_RESET_ACHIEVEMENT_IDS.has(id)),
+    );
+    deferredToastIdsRef.current = deferredToastIdsRef.current.filter(
+      (id) => !CAMPAIGN_RESET_ACHIEVEMENT_IDS.has(id),
+    );
+    setAchievementToastQueue((q) =>
+      q.filter((id) => !CAMPAIGN_RESET_ACHIEVEMENT_IDS.has(id)),
+    );
+  }, []);
+
   useEffect(() => {
     completedMissions.forEach((done, i) => {
       if (!done) return;
@@ -98,6 +158,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
         unlockAchievement,
         flushDeferredAchievementToasts,
         dismissAchievementToast,
+        resetCampaign,
+        mobilePadRef,
+        mobileJumpQueuedRef,
+        queueMobileJump,
+        pulseInteractKeyE,
+        jumpButtonHeldRef,
       }}
     >
       {children}

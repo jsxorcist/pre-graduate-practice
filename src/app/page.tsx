@@ -23,13 +23,13 @@ export default function Home() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                 <Link
                   href="/game"
-                  className="inline-flex rounded-full bg-orange-500 px-8 py-4 text-base font-semibold text-slate-950 transition hover:bg-orange-400"
+                  className="inline-flex cursor-pointer rounded-full bg-orange-500 px-8 py-4 text-base font-semibold text-slate-950 transition hover:bg-orange-400"
                 >
                   Начать игру
                 </Link>
                 <Link
                   href="#values"
-                  className="inline-flex rounded-full border border-white/10 bg-white/5 px-8 py-4 text-base text-slate-200 transition hover:border-white/20 hover:bg-white/10"
+                  className="inline-flex cursor-pointer rounded-full border border-white/10 bg-white/5 px-8 py-4 text-base text-slate-200 transition hover:border-white/20 hover:bg-white/10"
                 >
                   Ценности
                 </Link>

@@ -1,7 +1,16 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import type { MutableRefObject } from "react";
 import { useGame } from "./GameContext";
+
+/** Удерживать пробел столько секунд, чтобы начать заряд турбо (скрытая активация). */
+const ROCKET_SPACE_HOLD_TO_CHARGE = 2;
+const ROCKET_CHARGE_SEC = 3;
+const ROCKET_SPIN_SEC = 1.05;
+const ROCKET_TRAIL_MAX = 160;
+/** Закрутка перед взлётом — вращается персонаж (как раньше). */
+const ROCKET_HERO_SPIN_SPEED = 54;
 
 /** Пол комнаты y≈0; стартовая высота группы героя (ноги у пола). */
 const BASE_Y = 1.15;
@@ -49,6 +58,39 @@ const HAIR_BROWN = "#4e342e";
 const GLASSES_BLACK = "#1a1a1a";
 const SHOE_WHITE = "#eceff1";
 
+/** Линия в мировых координатах — след за ракетным импульсом. */
+function RocketWorldTrail({
+  pointsRef,
+}: {
+  pointsRef: MutableRefObject<THREE.Vector3[]>;
+}) {
+  const lineObj = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    const mat = new THREE.LineBasicMaterial({
+      color: new THREE.Color("#ffd699"),
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+    });
+    const line = new THREE.Line(geo, mat);
+    line.frustumCulled = false;
+    line.renderOrder = -2;
+    return line;
+  }, []);
+
+  useFrame(() => {
+    const pts = pointsRef.current;
+    if (pts.length < 2) {
+      lineObj.visible = false;
+      return;
+    }
+    lineObj.visible = true;
+    lineObj.geometry.setFromPoints(pts);
+  });
+
+  return <primitive object={lineObj} />;
+}
+
 interface PlayerProps {
   onEpicLaunch?: () => void;
   /** Не двигаться и не прыгать (открыт экран миссии и т.п.). */
@@ -60,19 +102,30 @@ export default function Player({
   movementLocked = false,
 }: PlayerProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const { playerWorldPositionRef } = useGame();
+  const {
+    playerWorldPositionRef,
+    mobilePadRef,
+    mobileJumpQueuedRef,
+    jumpButtonHeldRef,
+  } = useGame();
   const verticalVel = useRef(0);
   const keys = useRef({
     w: false,
     a: false,
     s: false,
     d: false,
-    r: false,
+    space: false,
   });
+  const rocketSpacePrimeRef = useRef(0);
   const jumpQueued = useRef(false);
   const spaceHoldTime = useRef(0);
   const rocketTimer = useRef(0);
   const launchVelocity = useRef(new THREE.Vector3());
+  const rocketPlumeRootRef = useRef<THREE.Group>(null);
+  const rocketExhaustLightRef = useRef<THREE.PointLight>(null);
+  const trailWorldPointsRef = useRef<THREE.Vector3[]>([]);
+  const exhaustTipScratch = useRef(new THREE.Vector3());
+  const spinLaunchCommittedRef = useRef(false);
   const [rocketStage, setRocketStage] = useState<
     "idle" | "charging" | "spinning" | "launching"
   >("idle");
@@ -102,10 +155,8 @@ export default function Player({
         case "KeyD":
           keys.current.d = true;
           break;
-        case "KeyR":
-          keys.current.r = true;
-          break;
         case "Space":
+          keys.current.space = true;
           jumpQueued.current = true;
           break;
       }
@@ -125,8 +176,8 @@ export default function Player({
         case "KeyD":
           keys.current.d = false;
           break;
-        case "KeyR":
-          keys.current.r = false;
+        case "Space":
+          keys.current.space = false;
           break;
       }
     };
@@ -143,6 +194,11 @@ export default function Player({
   useFrame((state, delta) => {
     if (!groupRef.current) return;
 
+    if (mobileJumpQueuedRef.current) {
+      jumpQueued.current = true;
+      mobileJumpQueuedRef.current = false;
+    }
+
     const locked = movementLocked;
     const camera = state.camera;
     const direction = new THREE.Vector3();
@@ -156,11 +212,14 @@ export default function Player({
 
     const speed = 5;
     const moveDir = new THREE.Vector3(0, 0, 0);
+    const k = keys.current;
+    const pad = mobilePadRef.current;
+    const spaceHeld = k.space || jumpButtonHeldRef.current;
     if (!locked) {
-      if (keys.current.w) moveDir.add(direction);
-      if (keys.current.s) moveDir.sub(direction);
-      if (keys.current.a) moveDir.sub(right);
-      if (keys.current.d) moveDir.add(right);
+      if (k.w || pad.w) moveDir.add(direction);
+      if (k.s || pad.s) moveDir.sub(direction);
+      if (k.a || pad.a) moveDir.sub(right);
+      if (k.d || pad.d) moveDir.add(right);
     }
     if (moveDir.lengthSq() > 1e-12) {
       moveDir.normalize();
@@ -206,27 +265,44 @@ export default function Player({
       groupRef.current.rotation.y = ry + angleDiff * alpha;
     }
 
-    if (!locked && isCharging) {
+    if (!locked && isCharging && spaceHeld) {
       spaceHoldTime.current += delta;
-      if (spaceHoldTime.current >= 3) {
+      if (spaceHoldTime.current >= ROCKET_CHARGE_SEC) {
         setRocketStage("spinning");
         rocketTimer.current = 0;
       }
     }
 
+    /** Нарастание сопла при зарядке — только визуальный масштаб. */
+    if (rocketPlumeRootRef.current) {
+      if (isCharging) {
+        const t = Math.min(1, spaceHoldTime.current / ROCKET_CHARGE_SEC);
+        const s = 0.2 + t * 1.05;
+        rocketPlumeRootRef.current.scale.setScalar(s);
+      } else if (isSpinning || isLaunching) {
+        rocketPlumeRootRef.current.scale.setScalar(1.18);
+      } else {
+        rocketPlumeRootRef.current.scale.setScalar(1);
+      }
+    }
+
     if (isSpinning) {
       rocketTimer.current += delta;
-      const spinSpeed = 60;
+      const spinSpeed = ROCKET_HERO_SPIN_SPEED;
       groupRef.current.rotation.x += spinSpeed * delta;
       groupRef.current.rotation.y += spinSpeed * delta;
       groupRef.current.rotation.z += spinSpeed * delta;
-      if (rocketTimer.current >= 2) {
+      if (
+        rocketTimer.current >= ROCKET_SPIN_SEC &&
+        !spinLaunchCommittedRef.current
+      ) {
+        spinLaunchCommittedRef.current = true;
         const randomDirection = new THREE.Vector3(
-          (Math.random() - 0.5) * 2,
-          1.5,
-          (Math.random() - 0.5) * 2,
+          (Math.random() - 0.5) * 1.15,
+          2.35,
+          (Math.random() - 0.5) * 1.15,
         ).normalize();
-        launchVelocity.current.copy(randomDirection.multiplyScalar(18));
+        launchVelocity.current.copy(randomDirection.multiplyScalar(15.5));
         setRocketStage("launching");
         verticalVel.current = 0;
         onEpicLaunch?.();
@@ -234,27 +310,73 @@ export default function Player({
     }
 
     if (isLaunching) {
-      launchVelocity.current.add(new THREE.Vector3(0, 28 * delta, 0));
+      launchVelocity.current.add(new THREE.Vector3(0, 22 * delta, 0));
       groupRef.current.position.add(
         launchVelocity.current.clone().multiplyScalar(delta),
       );
+
+      /** Низ сопла под ступнями, чуть сзади — как источник следа. */
+      const tip = exhaustTipScratch.current.set(0, -1.02, -0.14);
+      groupRef.current.localToWorld(tip);
+      const trail = trailWorldPointsRef.current;
+      trail.push(tip.clone());
+      while (trail.length > ROCKET_TRAIL_MAX) trail.shift();
+
+      const flicker =
+        1.4 +
+        Math.sin(performance.now() * 0.018) * 0.55 +
+        Math.sin(performance.now() * 0.041) * 0.35;
+      if (rocketExhaustLightRef.current) {
+        rocketExhaustLightRef.current.intensity = flicker * 2.4;
+      }
+
       if (groupRef.current.position.y < BASE_Y + 0.05) {
         groupRef.current.position.y = BASE_Y;
         launchVelocity.current.set(0, 0, 0);
         setRocketStage("idle");
         groupRef.current.rotation.x = 0;
         groupRef.current.rotation.z = 0;
+        trailWorldPointsRef.current.length = 0;
+        spinLaunchCommittedRef.current = false;
+        if (rocketExhaustLightRef.current) {
+          rocketExhaustLightRef.current.intensity = 0;
+        }
+      }
+    } else if (rocketExhaustLightRef.current) {
+      if (isCharging) {
+        const t = Math.min(1, spaceHoldTime.current / ROCKET_CHARGE_SEC);
+        rocketExhaustLightRef.current.intensity = 0.45 + t * 2.1;
+        rocketExhaustLightRef.current.color.set("#ffab40");
+      } else if (isSpinning) {
+        rocketExhaustLightRef.current.intensity =
+          2.2 + Math.sin(performance.now() * 0.019) * 0.9;
+        rocketExhaustLightRef.current.color.set("#ff9800");
+      } else if (!isLaunching) {
+        rocketExhaustLightRef.current.intensity = 0;
       }
     }
 
-    if (!locked && keys.current.r && rocketStage === "idle") {
-      setRocketStage("charging");
-      spaceHoldTime.current = 0;
+    if (
+      !locked &&
+      rocketStage === "idle" &&
+      grounded &&
+      spaceHeld
+    ) {
+      rocketSpacePrimeRef.current += delta;
+      if (rocketSpacePrimeRef.current >= ROCKET_SPACE_HOLD_TO_CHARGE) {
+        setRocketStage("charging");
+        rocketSpacePrimeRef.current = 0;
+        spaceHoldTime.current = 0;
+        spinLaunchCommittedRef.current = false;
+      }
+    } else if (rocketStage === "idle") {
+      rocketSpacePrimeRef.current = 0;
     }
 
-    if ((!keys.current.r || locked) && rocketStage === "charging") {
+    if ((!spaceHeld || locked) && rocketStage === "charging") {
       setRocketStage("idle");
       spaceHoldTime.current = 0;
+      spinLaunchCommittedRef.current = false;
     }
 
     if (!isLaunching) {
@@ -331,7 +453,13 @@ export default function Player({
     playerWorldPositionRef.current.copy(groupRef.current.position);
   });
 
+  const showRocketPlume =
+    rocketStage === "charging" ||
+    rocketStage === "spinning" ||
+    rocketStage === "launching";
+
   return (
+    <>
     <group ref={groupRef} position={[0, BASE_Y, 0]} castShadow>
       {/* Торс костюма + «круглый живот» */}
       <mesh position={[0, 0.06, 0]} castShadow>
@@ -474,18 +602,64 @@ export default function Player({
         </mesh>
       </group>
 
-      {(rocketStage === "spinning" || rocketStage === "launching") && (
-        <mesh position={[0, -0.55, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <coneGeometry args={[0.32, 1.85, 16]} />
-          <meshStandardMaterial
-            color="#ff9800"
-            emissive="#ff6d00"
-            emissiveIntensity={1}
-            roughness={0.2}
-            transparent
-            opacity={0.78}
+      {showRocketPlume && (
+        <group ref={rocketPlumeRootRef} position={[0, -1.05, -0.1]}>
+          {/*
+            Конус Three.js: ось Y, узкая точка (+Y/half), широкое основание (−Y/half).
+            Без поворота −90° по X — иначе пламя «лежит» на полу. Смещаем центр вниз так,
+            чтобы все узкие сходились у ступней, широкая часть — только ниже ног.
+          */}
+          <pointLight
+            ref={rocketExhaustLightRef}
+            position={[0, -0.05, 0.05]}
+            distance={14}
+            decay={2}
+            intensity={0}
+            color="#ffc082"
           />
-        </mesh>
+          <mesh position={[0, -1.275, 0]} renderOrder={3}>
+            <coneGeometry args={[0.42, 2.55, 28]} />
+            <meshStandardMaterial
+              color="#e65100"
+              emissive="#ff6f00"
+              emissiveIntensity={0.85}
+              roughness={0.85}
+              metalness={0}
+              transparent
+              opacity={0.38}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+            />
+          </mesh>
+          <mesh position={[0, -1.025, 0]} renderOrder={4}>
+            <coneGeometry args={[0.28, 2.05, 24]} />
+            <meshStandardMaterial
+              color="#ffb300"
+              emissive="#ff9800"
+              emissiveIntensity={1.1}
+              roughness={0.45}
+              metalness={0.05}
+              transparent
+              opacity={0.52}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+            />
+          </mesh>
+          <mesh position={[0, -0.725, 0]} renderOrder={5}>
+            <coneGeometry args={[0.13, 1.45, 20]} />
+            <meshStandardMaterial
+              color="#fff8e1"
+              emissive="#ffe082"
+              emissiveIntensity={1.65}
+              roughness={0.35}
+              metalness={0.12}
+              transparent
+              opacity={0.78}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+            />
+          </mesh>
+        </group>
       )}
 
       {/* Ноги: бедро (таз) → колено → голень + кроссовки */}
@@ -550,5 +724,7 @@ export default function Player({
         </group>
       </group>
     </group>
+    <RocketWorldTrail pointsRef={trailWorldPointsRef} />
+    </>
   );
 }

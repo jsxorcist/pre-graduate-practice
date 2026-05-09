@@ -62,3 +62,10 @@ export const MISSION_INDEX_TO_ACHIEVEMENT: (string | null)[] = [
   "values-transparency",
   "values-velocity",
 ];
+
+/** Сбрасываются при «начать кампанию заново». */
+export const CAMPAIGN_RESET_ACHIEVEMENT_IDS = new Set<string>([
+  ...(MISSION_INDEX_TO_ACHIEVEMENT.filter((x): x is string => x != null)),
+  "campaign-trinity",
+  "culture-overclock",
+]);

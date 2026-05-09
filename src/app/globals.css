@@ -25,6 +25,14 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Preflight не задаёт указатель на <button> — единообразно для всего UI */
+button:enabled {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
 /* Миссии: победа / провал / микродвижуха */
 @keyframes mission-glitch-text {
   0% {
@@ -231,4 +239,49 @@ body {
 
 .animate-achievement-crest-glow {
   animation: achievement-crest-glow 2.4s ease-in-out infinite;
+}
+
+/* Финал кампании: конфетти на весь экран */
+@keyframes campaign-confetti-fall-screen {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, 0) rotate(0deg) scale(1);
+  }
+  100% {
+    opacity: 0.4;
+    transform: translate(-50%, 125vh) rotate(620deg) scale(0.35);
+  }
+}
+
+@keyframes campaign-line-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.animate-campaign-line-pop {
+  animation: campaign-line-pop 0.62s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes campaign-trophy {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 48px -6px rgba(251, 191, 36, 0.45);
+  }
+  50% {
+    transform: translateY(-6px) scale(1.06);
+    box-shadow: 0 0 64px -4px rgba(244, 114, 182, 0.35);
+  }
+}
+
+.animate-campaign-trophy {
+  animation: campaign-trophy 2.4s ease-in-out infinite;
 }

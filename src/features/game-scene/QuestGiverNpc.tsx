@@ -239,6 +239,7 @@ export default function QuestGiverNpc({
             center
             distanceFactor={7}
             transform
+            zIndexRange={[8, 32]}
             style={{ pointerEvents: "none" }}
           >
             <MissionBubbleHtml />

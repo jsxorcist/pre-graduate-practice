@@ -112,6 +112,7 @@ export default function SpeedCoachNpc({
             center
             distanceFactor={7}
             transform
+            zIndexRange={[8, 32]}
             style={{ pointerEvents: "none" }}
           >
             <SpeedBubbleHtml />

@@ -21,7 +21,7 @@ export default function Mission1Page() {
             </div>
             <Link
               href="/game"
-              className="inline-flex rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/10"
+              className="inline-flex cursor-pointer rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/10"
             >
               Назад в Core Room
             </Link>
