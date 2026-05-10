@@ -30,11 +30,7 @@ export default function Mission2Page() {
 
         <div className="grid gap-6 lg:grid-cols-2">
           {mission2.options.map((option) => (
-            <MissionCard
-              key={option.id}
-              option={option}
-              onSelect={() => undefined}
-            />
+            <MissionCard key={option.id} option={option} />
           ))}
         </div>
       </div>
