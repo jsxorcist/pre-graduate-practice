@@ -191,7 +191,7 @@ export default function CheerfulBgm() {
             ? "Включить музыку"
             : "Выключить музыку"
       }
-      className="fixed bottom-[calc(12.75rem+env(safe-area-inset-bottom))] right-4 z-[52] flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/40 text-lg shadow-lg backdrop-blur-md transition hover:bg-black/55 lg:bottom-6 lg:right-6"
+      className="fixed bottom-[calc(12.75rem+env(safe-area-inset-bottom))] right-4 z-[50] flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/40 text-lg shadow-lg backdrop-blur-md transition hover:bg-black/55 max-[520px]:bottom-[calc(17.25rem+env(safe-area-inset-bottom))] lg:bottom-6 lg:right-6"
       onClick={handleClick}
     >
       {label}

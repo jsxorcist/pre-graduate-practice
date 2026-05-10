@@ -60,52 +60,40 @@ export default function MobileTouchControls({
     },
   });
 
+  /** На узком экране один ряд «D-pad | прыжок» даёт горизонтальное перекрытие — палец попадает на «Прыжок» (удержание = турбо). Колонка убирает overlap. */
+  const padBtn =
+    "h-14 w-14 rounded-2xl border border-white/25 bg-black/40 text-lg text-white shadow-lg backdrop-blur-md active:bg-black/55 max-[520px]:h-[3.25rem] max-[520px]:w-[3.25rem] max-[520px]:text-base";
+
   return (
     <div
-      className={`fixed inset-x-0 bottom-0 z-[48] flex items-end justify-between gap-3 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 lg:hidden ${
+      className={`fixed inset-x-0 bottom-0 z-[56] flex items-end justify-between gap-2 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 max-[520px]:flex-col max-[520px]:items-center max-[520px]:gap-3 max-[520px]:justify-end lg:hidden ${
         disabled ? "pointer-events-none opacity-0" : "pointer-events-auto"
       }`}
       aria-hidden={disabled}
     >
       {/* D-pad */}
-      <div className="flex select-none flex-col items-center gap-1">
-        <TouchBtn
-          label="Вперёд"
-          className="h-14 w-14 rounded-2xl border border-white/25 bg-black/40 text-lg text-white shadow-lg backdrop-blur-md active:bg-black/55"
-          {...bindHold("w")}
-        >
+      <div className="flex shrink-0 select-none flex-col items-center gap-1">
+        <TouchBtn label="Вперёд" className={padBtn} {...bindHold("w")}>
           ▲
         </TouchBtn>
         <div className="flex gap-1">
-          <TouchBtn
-            label="Влево"
-            className="h-14 w-14 rounded-2xl border border-white/25 bg-black/40 text-lg text-white shadow-lg backdrop-blur-md active:bg-black/55"
-            {...bindHold("a")}
-          >
+          <TouchBtn label="Влево" className={padBtn} {...bindHold("a")}>
             ◀
           </TouchBtn>
-          <TouchBtn
-            label="Назад"
-            className="h-14 w-14 rounded-2xl border border-white/25 bg-black/40 text-lg text-white shadow-lg backdrop-blur-md active:bg-black/55"
-            {...bindHold("s")}
-          >
+          <TouchBtn label="Назад" className={padBtn} {...bindHold("s")}>
             ▼
           </TouchBtn>
-          <TouchBtn
-            label="Вправо"
-            className="h-14 w-14 rounded-2xl border border-white/25 bg-black/40 text-lg text-white shadow-lg backdrop-blur-md active:bg-black/55"
-            {...bindHold("d")}
-          >
+          <TouchBtn label="Вправо" className={padBtn} {...bindHold("d")}>
             ▶
           </TouchBtn>
         </div>
       </div>
 
       {/* Действия */}
-      <div className="flex flex-col items-end gap-2">
+      <div className="flex shrink-0 flex-col items-end gap-2 max-[520px]:w-full max-[520px]:flex-row max-[520px]:items-stretch max-[520px]:justify-center">
         <TouchBtn
           label="Прыжок"
-          className="h-16 min-w-[4.5rem] rounded-2xl border border-cyan-400/40 bg-cyan-950/55 px-4 text-sm font-bold text-cyan-100 shadow-[0_8px_28px_-8px_rgba(34,211,238,0.45)] backdrop-blur-md active:bg-cyan-900/65"
+          className="h-16 min-h-[4rem] min-w-[4.5rem] rounded-2xl border border-cyan-400/40 bg-cyan-950/55 px-4 text-sm font-bold text-cyan-100 shadow-[0_8px_28px_-8px_rgba(34,211,238,0.45)] backdrop-blur-md active:bg-cyan-900/65 max-[520px]:flex-1 max-[520px]:self-stretch max-[520px]:min-h-16"
           onPointerDown={(e) => {
             if (disabled) return;
             e.preventDefault();
@@ -128,7 +116,7 @@ export default function MobileTouchControls({
         </TouchBtn>
         <TouchBtn
           label="Взаимодействие"
-          className="h-14 min-w-[4.5rem] rounded-2xl border border-fuchsia-400/35 bg-fuchsia-950/45 px-3 text-sm font-bold text-fuchsia-100 shadow-lg backdrop-blur-md active:bg-fuchsia-900/55"
+          className="h-16 min-h-[4rem] min-w-[4.5rem] rounded-2xl border border-fuchsia-400/35 bg-fuchsia-950/45 px-3 text-sm font-bold text-fuchsia-100 shadow-lg backdrop-blur-md active:bg-fuchsia-900/55 max-[520px]:flex-1 max-[520px]:self-stretch max-[520px]:min-h-16"
           onPointerDown={(e) => {
             if (disabled) return;
             e.preventDefault();

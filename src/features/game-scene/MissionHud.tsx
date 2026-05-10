@@ -257,10 +257,9 @@ export default function MissionHud({
               id="mobile-mission-sheet"
               role="dialog"
               aria-modal="false"
-              className="pointer-events-auto fixed left-3 right-3 z-[44] overflow-y-auto overscroll-contain rounded-2xl border border-white/25 bg-black/72 p-3 shadow-xl backdrop-blur-md"
+              className="pointer-events-auto fixed left-3 right-3 z-[44] overflow-y-auto overscroll-contain rounded-2xl border border-white/25 bg-black/72 p-3 shadow-xl backdrop-blur-md bottom-[calc(12rem+env(safe-area-inset-bottom))] max-[520px]:bottom-[calc(17.25rem+env(safe-area-inset-bottom))]"
               style={{
                 top: "calc(max(env(safe-area-inset-top), 0.75rem) + 4.125rem)",
-                bottom: "calc(12rem + env(safe-area-inset-bottom))",
               }}
             >
               <div className="mb-3 flex justify-end lg:hidden">
