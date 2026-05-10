@@ -36,6 +36,7 @@ function GameSceneInner() {
     completedMissions,
   } = useGame();
   const [overlayActive, setOverlayActive] = useState(false);
+  const [playerRespawnNonce, setPlayerRespawnNonce] = useState(0);
   const [missionActive, setMissionActive] = useState(false);
   const [transparencyMissionActive, setTransparencyMissionActive] = useState(false);
   const [speedMissionActive, setSpeedMissionActive] = useState(false);
@@ -43,16 +44,33 @@ function GameSceneInner() {
   const overlayTimer = useRef<number | null>(null);
   const campaignVictoryShownRef = useRef(false);
 
+  /** Закрыть эпичный оверлей турбо и зареспавнить героя в комнате (миссии и достижения не сбрасываются). */
+  const finishEpicTurboExperience = useCallback(() => {
+    if (overlayTimer.current != null) {
+      window.clearTimeout(overlayTimer.current);
+      overlayTimer.current = null;
+    }
+    setOverlayActive(false);
+    setPlayerRespawnNonce((n) => n + 1);
+  }, []);
+
   const handleEpicLaunch = useCallback(() => {
     unlockAchievement("epic-reactor");
     setOverlayActive(true);
-    if (overlayTimer.current) {
+    if (overlayTimer.current != null) {
       window.clearTimeout(overlayTimer.current);
     }
     overlayTimer.current = window.setTimeout(() => {
-      setOverlayActive(false);
+      finishEpicTurboExperience();
     }, 5000);
-  }, [unlockAchievement]);
+  }, [unlockAchievement, finishEpicTurboExperience]);
+
+  useEffect(
+    () => () => {
+      if (overlayTimer.current != null) window.clearTimeout(overlayTimer.current);
+    },
+    [],
+  );
 
   const handleActivateMission = useCallback(() => {
     setMissionActive(true);
@@ -137,6 +155,7 @@ function GameSceneInner() {
           <Player
             onEpicLaunch={handleEpicLaunch}
             movementLocked={hideNpcBubbles}
+            respawnNonce={playerRespawnNonce}
           />
           <GameCameraRig />
           <Room />
@@ -196,24 +215,21 @@ function GameSceneInner() {
 
       <CheerfulBgm />
 
-      <div className="absolute top-3 left-3 z-40 max-w-[13rem] select-none rounded-lg border border-white/20 bg-black/45 px-3 py-2.5 text-sm text-white shadow-lg backdrop-blur-md">
+      <div className="absolute top-3 left-3 z-40 hidden max-w-[13rem] select-none rounded-lg border border-white/20 bg-black/45 px-3 py-2.5 text-sm text-white shadow-lg backdrop-blur-md lg:block">
         <h1 className="text-sm font-bold tracking-tight text-yellow-300 md:text-base">
           Ядро — комната
         </h1>
         <p className="mt-1.5 text-[10px] uppercase tracking-[0.18em] text-slate-300 md:text-xs">
-          Прогресс миссий — панель справа
+          Прогресс миссий — панель справа; на телефоне — кнопка «Кампания» сверху
         </p>
         <p className="mt-2 text-[10px] leading-snug text-slate-200/95 md:text-xs">
           <span className="font-semibold text-cyan-200">WASD</span> — движение ·{" "}
           <span className="font-semibold text-cyan-200">Пробел</span> — прыжок ·{" "}
           <span className="font-semibold text-cyan-200">E</span> — взаимодействие
         </p>
-        <p className="mt-2 border-t border-white/10 pt-2 text-[10px] leading-snug text-slate-300/90 lg:hidden">
-          На телефоне панель снизу: стрелки, прыжок и «Действие» вместо E.
-        </p>
       </div>
 
-      <EpicOverlay active={overlayActive} />
+      <EpicOverlay active={overlayActive} onContinue={finishEpicTurboExperience} />
     </div>
   );
 }

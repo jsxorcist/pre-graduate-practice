@@ -27,19 +27,34 @@ const scratchLookTarget = new THREE.Vector3();
  */
 export default function GameCameraRig() {
   const { camera } = useThree();
-  const { playerWorldPositionRef } = useGame();
+  const { playerWorldPositionRef, turboCameraShakeRef } = useGame();
   const lookCurrent = useRef(new THREE.Vector3(0, 1.35, 0));
+  const shakeSmoothed = useRef(0);
   const initialized = useRef(false);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const px = playerWorldPositionRef.current.x;
     const py = playerWorldPositionRef.current.y;
     const pz = playerWorldPositionRef.current.z;
 
+    const targetShake = turboCameraShakeRef.current;
+    shakeSmoothed.current +=
+      (targetShake - shakeSmoothed.current) * (1 - Math.exp(-14 * delta));
+    const s = shakeSmoothed.current;
+    const t = state.clock.elapsedTime;
+    const ox =
+      Math.sin(t * 73) * 0.2 * s +
+      Math.sin(t * 137 + 0.4) * 0.09 * s +
+      Math.cos(t * 59) * 0.05 * s;
+    const oy =
+      Math.sin(t * 89 + 1.1) * 0.13 * s +
+      Math.cos(t * 101) * 0.07 * s;
+    const oz = Math.cos(t * 67) * 0.11 * s;
+
     scratchTargetPos.set(
-      px + WORLD_OFFSET_XZ.x,
-      py + CAMERA_HEIGHT,
-      pz + WORLD_OFFSET_XZ.z,
+      px + WORLD_OFFSET_XZ.x + ox,
+      py + CAMERA_HEIGHT + oy,
+      pz + WORLD_OFFSET_XZ.z + oz,
     );
 
     const kPos = 1 - Math.exp(-POS_SMOOTH * delta);

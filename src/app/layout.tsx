@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { UiClickSound } from "@/shared/audio/UiClickSound";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -20,6 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full font-sans antialiased">
       <body className="flex min-h-full flex-col overflow-x-hidden antialiased">
+        <UiClickSound />
         {children}
       </body>
     </html>

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { primeUiAudioContext } from "@/shared/audio/uiClickSfx";
+import { primeTurboAudioContext } from "./rocketTurboSfx";
 
 const BPM = 126;
 const LOOKAHEAD_MS = 25;
@@ -43,6 +45,11 @@ function scheduleNote(
   osc.stop(startTime + duration + 0.03);
 }
 
+function primeAllGameAudio(): void {
+  primeUiAudioContext();
+  primeTurboAudioContext();
+}
+
 export default function CheerfulBgm() {
   const [started, setStarted] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -52,6 +59,7 @@ export default function CheerfulBgm() {
   const stepRef = useRef(0);
   const nextTimeRef = useRef(0);
   const runningRef = useRef(false);
+  const startInFlightRef = useRef(false);
 
   const stopLoop = useCallback(() => {
     if (timerRef.current != null) {
@@ -80,11 +88,17 @@ export default function CheerfulBgm() {
   }, []);
 
   const startLoop = useCallback(() => {
-    if (runningRef.current) return;
+    if (runningRef.current || startInFlightRef.current) return;
+    startInFlightRef.current = true;
+    primeAllGameAudio();
+
     const Ctx =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) return;
+    if (!Ctx) {
+      startInFlightRef.current = false;
+      return;
+    }
 
     const ctx = ctxRef.current ?? new Ctx();
     ctxRef.current = ctx;
@@ -95,14 +109,37 @@ export default function CheerfulBgm() {
       masterRef.current = master;
     }
 
-    void ctx.resume().then(() => {
-      runningRef.current = true;
-      stepRef.current = 0;
-      nextTimeRef.current = ctx.currentTime + 0.06;
-      schedulerTick();
-      setStarted(true);
-    });
+    void ctx
+      .resume()
+      .then(() => {
+        startInFlightRef.current = false;
+        if (runningRef.current) return;
+        runningRef.current = true;
+        stepRef.current = 0;
+        nextTimeRef.current = ctx.currentTime + 0.06;
+        schedulerTick();
+        setStarted(true);
+      })
+      .catch(() => {
+        startInFlightRef.current = false;
+      });
   }, [schedulerTick]);
+
+  /** После любого жеста в игре включаются музыка и уже открытые Web Audio контексты (ограничение браузера). */
+  useEffect(() => {
+    const onFirstGesture = () => {
+      startLoop();
+    };
+    window.addEventListener("pointerdown", onFirstGesture, {
+      passive: true,
+      capture: true,
+    });
+    window.addEventListener("keydown", onFirstGesture, { capture: true });
+    return () => {
+      window.removeEventListener("pointerdown", onFirstGesture, { capture: true });
+      window.removeEventListener("keydown", onFirstGesture, { capture: true });
+    };
+  }, [startLoop]);
 
   useEffect(() => {
     const g = masterRef.current?.gain;
@@ -126,29 +163,35 @@ export default function CheerfulBgm() {
 
   const handleClick = () => {
     if (!started) {
+      primeAllGameAudio();
       startLoop();
       return;
     }
     setMuted((m) => !m);
   };
 
-  const label = !started ? "🎵" : muted ? "🔇" : "🔊";
+  /** До первого запуска петли показываем динамик: музыка задумана включённой сразу после жеста. */
+  const label = !started ? "🔊" : muted ? "🔇" : "🔊";
 
   return (
     <button
       type="button"
       aria-label={
-        !started ? "Включить фоновую музыку" : muted ? "Включить музыку" : "Выключить музыку"
-      }
-      aria-pressed={started && !muted}
-      title={
         !started
-          ? "Нажми — заиграет тихая фоновая музыка"
+          ? "Фоновая музыка (включится при первом касании или клавише)"
           : muted
             ? "Включить музыку"
             : "Выключить музыку"
       }
-      className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-[55] flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/40 text-lg shadow-lg backdrop-blur-md transition hover:bg-black/55 lg:bottom-6 lg:right-6"
+      aria-pressed={started && !muted}
+      title={
+        !started
+          ? "Тихая музыка включится при первом касании экрана или нажатии клавиши — так требует браузер"
+          : muted
+            ? "Включить музыку"
+            : "Выключить музыку"
+      }
+      className="fixed bottom-[calc(12.75rem+env(safe-area-inset-bottom))] right-4 z-[52] flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/40 text-lg shadow-lg backdrop-blur-md transition hover:bg-black/55 lg:bottom-6 lg:right-6"
       onClick={handleClick}
     >
       {label}

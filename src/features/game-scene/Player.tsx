@@ -3,6 +3,13 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { MutableRefObject } from "react";
 import { useGame } from "./GameContext";
+import {
+  stopTurboChargeHum,
+  playTurboChargeHum,
+  playTurboSpinWhoosh,
+  playTurboLaunchBlast,
+  playTurboLandThud,
+} from "./rocketTurboSfx";
 
 /** Удерживать пробел столько секунд, чтобы начать заряд турбо (скрытая активация). */
 const ROCKET_SPACE_HOLD_TO_CHARGE = 2;
@@ -95,11 +102,14 @@ interface PlayerProps {
   onEpicLaunch?: () => void;
   /** Не двигаться и не прыгать (открыт экран миссии и т.п.). */
   movementLocked?: boolean;
+  /** Увеличить при ресапне после турбо — сброс в старт точку без затрагивания миссий в контексте. */
+  respawnNonce?: number;
 }
 
 export default function Player({
   onEpicLaunch,
   movementLocked = false,
+  respawnNonce = 0,
 }: PlayerProps) {
   const groupRef = useRef<THREE.Group>(null);
   const {
@@ -107,6 +117,7 @@ export default function Player({
     mobilePadRef,
     mobileJumpQueuedRef,
     jumpButtonHeldRef,
+    turboCameraShakeRef,
   } = useGame();
   const verticalVel = useRef(0);
   const keys = useRef({
@@ -126,10 +137,44 @@ export default function Player({
   const trailWorldPointsRef = useRef<THREE.Vector3[]>([]);
   const exhaustTipScratch = useRef(new THREE.Vector3());
   const spinLaunchCommittedRef = useRef(false);
+  const turboLandingSoundPlayedRef = useRef(false);
   const [rocketStage, setRocketStage] = useState<
     "idle" | "charging" | "spinning" | "launching"
   >("idle");
   const walkTimeRef = useRef(0);
+
+  /** Ресапн после оверлея турбо — только поза/физика, не состояние кампании. */
+  useEffect(() => {
+    if (respawnNonce === 0) return;
+    const g = groupRef.current;
+    if (!g) return;
+
+    g.position.set(0, BASE_Y, 0);
+    g.rotation.set(0, 0, 0);
+    verticalVel.current = 0;
+    launchVelocity.current.set(0, 0, 0);
+    rocketTimer.current = 0;
+    rocketSpacePrimeRef.current = 0;
+    spaceHoldTime.current = 0;
+    spinLaunchCommittedRef.current = false;
+    walkTimeRef.current = 0;
+    trailWorldPointsRef.current.length = 0;
+    jumpQueued.current = false;
+    keys.current.space = false;
+    setRocketStage("idle");
+    playerWorldPositionRef.current.copy(g.position);
+    const light = rocketExhaustLightRef.current;
+    if (light) {
+      light.intensity = 0;
+    }
+    const plume = rocketPlumeRootRef.current;
+    if (plume) {
+      plume.scale.setScalar(1);
+    }
+    stopTurboChargeHum();
+    turboCameraShakeRef.current = 0;
+  }, [respawnNonce]);
+
   const leftShoulderGroupRef = useRef<THREE.Group>(null);
   const rightShoulderGroupRef = useRef<THREE.Group>(null);
   const leftElbowGroupRef = useRef<THREE.Group>(null);
@@ -138,6 +183,10 @@ export default function Player({
   const rightLegGroupRef = useRef<THREE.Group>(null);
   const leftKneeGroupRef = useRef<THREE.Group>(null);
   const rightKneeGroupRef = useRef<THREE.Group>(null);
+  const turboSpinRingsRef = useRef<THREE.Group>(null);
+  const prevRocketStageRef = useRef<
+    "idle" | "charging" | "spinning" | "launching"
+  >("idle");
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -191,6 +240,28 @@ export default function Player({
     };
   }, []);
 
+  useEffect(() => {
+    return () => stopTurboChargeHum();
+  }, []);
+
+  useEffect(() => {
+    const prev = prevRocketStageRef.current;
+    prevRocketStageRef.current = rocketStage;
+
+    if (rocketStage === "charging" && prev !== "charging") {
+      void playTurboChargeHum(ROCKET_CHARGE_SEC + 0.4);
+    }
+    if (prev === "charging" && rocketStage === "idle") {
+      stopTurboChargeHum();
+    }
+    if (rocketStage === "spinning" && prev !== "spinning") {
+      void playTurboSpinWhoosh();
+    }
+    if (rocketStage === "launching" && prev !== "launching") {
+      void playTurboLaunchBlast();
+    }
+  }, [rocketStage]);
+
   useFrame((state, delta) => {
     if (!groupRef.current) return;
 
@@ -233,6 +304,11 @@ export default function Player({
     const canMove =
       !locked && (rocketStage === "idle" || isCharging) && !isLaunching;
 
+    if (turboSpinRingsRef.current && isSpinning) {
+      turboSpinRingsRef.current.rotation.y += delta * 38;
+      turboSpinRingsRef.current.rotation.z += delta * 21;
+    }
+
     if (canMove) {
       groupRef.current.position.x += moveDir.x;
       groupRef.current.position.z += moveDir.z;
@@ -273,14 +349,38 @@ export default function Player({
       }
     }
 
+    if (!locked) {
+      if (isLaunching) {
+        turboCameraShakeRef.current = 1.02;
+      } else if (isSpinning) {
+        turboCameraShakeRef.current = 0.74;
+      } else if (isCharging && spaceHeld) {
+        turboCameraShakeRef.current = Math.min(
+          0.32,
+          0.065 + spaceHoldTime.current * 0.086,
+        );
+      } else {
+        turboCameraShakeRef.current *= Math.exp(-13 * delta);
+      }
+    } else {
+      turboCameraShakeRef.current *= Math.exp(-13 * delta);
+    }
+
     /** Нарастание сопла при зарядке — только визуальный масштаб. */
     if (rocketPlumeRootRef.current) {
+      const beat = Math.sin(state.clock.elapsedTime * 14);
+      const micro = Math.sin(performance.now() * 0.022) * 0.07 + 1;
       if (isCharging) {
         const t = Math.min(1, spaceHoldTime.current / ROCKET_CHARGE_SEC);
-        const s = 0.2 + t * 1.05;
-        rocketPlumeRootRef.current.scale.setScalar(s);
+        const s = (0.2 + t * 1.12) * (1 + beat * 0.08 * t) * micro;
+        rocketPlumeRootRef.current.scale.setScalar(Math.max(0.15, s));
       } else if (isSpinning || isLaunching) {
-        rocketPlumeRootRef.current.scale.setScalar(1.18);
+        const s =
+          (1.22 +
+            Math.sin(state.clock.elapsedTime * 22) * 0.14 +
+            (isLaunching ? launchVelocity.current.length() * 0.026 : 0)) *
+          micro;
+        rocketPlumeRootRef.current.scale.setScalar(s);
       } else {
         rocketPlumeRootRef.current.scale.setScalar(1);
       }
@@ -297,6 +397,7 @@ export default function Player({
         !spinLaunchCommittedRef.current
       ) {
         spinLaunchCommittedRef.current = true;
+        turboLandingSoundPlayedRef.current = false;
         const randomDirection = new THREE.Vector3(
           (Math.random() - 0.5) * 1.15,
           2.35,
@@ -331,6 +432,10 @@ export default function Player({
       }
 
       if (groupRef.current.position.y < BASE_Y + 0.05) {
+        if (!turboLandingSoundPlayedRef.current) {
+          turboLandingSoundPlayedRef.current = true;
+          void playTurboLandThud();
+        }
         groupRef.current.position.y = BASE_Y;
         launchVelocity.current.set(0, 0, 0);
         setRocketStage("idle");
@@ -349,8 +454,10 @@ export default function Player({
         rocketExhaustLightRef.current.color.set("#ffab40");
       } else if (isSpinning) {
         rocketExhaustLightRef.current.intensity =
-          2.2 + Math.sin(performance.now() * 0.019) * 0.9;
-        rocketExhaustLightRef.current.color.set("#ff9800");
+          2.45 + Math.sin(performance.now() * 0.019) * 1.05;
+        const hue =
+          ((state.clock.elapsedTime * 0.92) % 6) / 6;
+        rocketExhaustLightRef.current.color.setHSL(hue, 0.78, 0.56);
       } else if (!isLaunching) {
         rocketExhaustLightRef.current.intensity = 0;
       }
@@ -543,6 +650,53 @@ export default function Player({
         <boxGeometry args={[0.05, 0.22, 0.04]} />
         <meshStandardMaterial color={STRIPE_WHITE} roughness={0.35} />
       </mesh>
+
+      {rocketStage === "spinning" && (
+        <group ref={turboSpinRingsRef} position={[0, 0.06, 0]}>
+          <mesh rotation={[Math.PI / 2 + 0.11, 0.28, 0]}>
+            <torusGeometry args={[0.68, 0.016, 8, 56]} />
+            <meshStandardMaterial
+              color="#00e5ff"
+              emissive="#00bcd4"
+              emissiveIntensity={3.6}
+              transparent
+              opacity={0.94}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+              roughness={0.45}
+              metalness={0.12}
+            />
+          </mesh>
+          <mesh rotation={[Math.PI / 2 - 0.06, -0.5, 1.45]}>
+            <torusGeometry args={[0.9, 0.012, 8, 56]} />
+            <meshStandardMaterial
+              color="#ffea00"
+              emissive="#ffc400"
+              emissiveIntensity={3.4}
+              transparent
+              opacity={0.9}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+              roughness={0.42}
+              metalness={0.1}
+            />
+          </mesh>
+          <mesh rotation={[Math.PI / 2, 0.18, -0.85]}>
+            <torusGeometry args={[1.06, 0.0095, 8, 44]} />
+            <meshStandardMaterial
+              color="#ff4081"
+              emissive="#e91e63"
+              emissiveIntensity={3.2}
+              transparent
+              opacity={0.88}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+              roughness={0.4}
+              metalness={0.08}
+            />
+          </mesh>
+        </group>
+      )}
 
       {/* Шея, голова, «боб», уши */}
       <mesh position={[0, 0.68, 0]} castShadow>

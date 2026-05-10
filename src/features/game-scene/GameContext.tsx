@@ -45,6 +45,8 @@ interface GameContextType {
   pulseInteractKeyE: () => void;
   /** Удержание кнопки «Прыжок» на тач (для комбо с пробелом на клавиатуре). */
   jumpButtonHeldRef: MutableRefObject<boolean>;
+  /** 0…1 — турбо: тряска камеры (читает GameCameraRig). */
+  turboCameraShakeRef: MutableRefObject<number>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -66,6 +68,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   });
   const mobileJumpQueuedRef = useRef(false);
   const jumpButtonHeldRef = useRef(false);
+  const turboCameraShakeRef = useRef(0);
 
   const queueMobileJump = useCallback(() => {
     mobileJumpQueuedRef.current = true;
@@ -164,6 +167,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         queueMobileJump,
         pulseInteractKeyE,
         jumpButtonHeldRef,
+        turboCameraShakeRef,
       }}
     >
       {children}
